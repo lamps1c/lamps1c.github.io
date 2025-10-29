@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>에치 룰렛 v5</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#0f1622; --grid:#111827;
+    --accent:#22d3ee; --violet:#a78bfa; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444;
+    --text:#e5e7eb; --muted:#94a3b8;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+    font-family:ui-sans-serif,system-ui,"Pretendard","Noto Sans KR","Apple SD Gothic Neo";}
+  .wrap{display:grid;grid-template-columns:320px 1fr 360px;gap:16px;
+    max-width:1400px;margin:22px auto;padding:0 16px}
+  @media (max-width:1200px){.wrap{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.08); border-radius:16px; overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .card h2{margin:0;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.06);
+    background:linear-gradient(90deg, rgba(34,211,238,.12), transparent 40%)}
+  .controls{padding:12px 14px; display:grid; gap:10px}
+  textarea{width:100%; height:110px; background:#0b1020; color:var(--text);
+    border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px}
+  .row{display:flex; gap:8px; flex-wrap:wrap}
+  button{cursor:pointer; background:#1f2937; color:var(--text);
+    border:1px solid rgba(255,255,255,.14); padding:10px 12px; border-radius:12px}
+  button.primary{background:linear-gradient(180deg,#0ea5e9,#1d4ed8); color:white; border-color:#38bdf8}
+  button.warn{background:linear-gradient(180deg,#f59e0b,#b45309); color:#111}
+  button:disabled{opacity:.55; cursor:not-allowed}
+  .tags{display:flex; flex-wrap:wrap; gap:6px; padding:4px 0}
+  .tag{padding:6px 10px; border-radius:999px; font-size:12px;
+    background:rgba(167,139,250,.12); border:1px solid rgba(167,139,250,.35)}
+  .log{padding:10px 14px; height:210px; overflow:auto; font-size:12px;
+    font-family:ui-monospace, Menlo, Consolas, monospace; background:#0b1020;
+    border-top:1px solid rgba(255,255,255,.06)}
+  .status{padding:10px 12px; display:grid; gap:8px}
+  .chip{display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
+    background:rgba(34,211,238,.08); border:1px dashed rgba(34,211,238,.4); font-size:12px}
+  .stageWrap{position:relative}
+  #stage{width:100%; height:600px; display:block; background:#0a0f18; border-radius:16px}
+  .board{padding:10px 12px}
+  .board table{width:100%; border-collapse:collapse; font-size:14px}
+  .board th,.board td{border-bottom:1px solid rgba(255,255,255,.08); padding:8px 6px; text-align:left}
+  .pill{padding:2px 8px; border-radius:999px; font-size:12px; display:inline-block}
+  .ok{background:rgba(16,185,129,.15); border:1px solid rgba(16,185,129,.45); color:var(--ok)}
+  .err{background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.45); color:var(--danger)}
+  .warn{background:rgba(245,158,11,.15); border:1px solid rgba(245,158,11,.45); color:var(--warn)}
+  #hud{position:absolute; right:20px; top:20px; z-index:3;
+    background:rgba(2,6,23,.55); border:1px solid rgba(148,163,184,.35);
+    padding:10px 12px; border-radius:12px; min-width:180px; backdrop-filter: blur(4px);}
+  #hud h3{margin:0 0 6px 0; font-size:13px; color:var(--accent)}
+  #rankList{font-size:12px; line-height:1.4}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2>참가자 설정</h2>
+      <div class="controls">
+        <textarea id="names" placeholder="이름을 띄어쓰기, 쉼표, 줄바꿈으로 구분해 입력"></textarea>
+        <div class="row">
+          <button id="btnAdd">참가자 추가</button>
+          <button id="btnClear">초기화</button>
+          <button id="btnShuffle">섞기</button>
+        </div>
+        <div class="tags" id="chips"></div>
+        <div class="row">
+          <button class="primary" id="btnStart">레이스 시작</button>
+          <button class="warn" id="btnReset" disabled>리셋</button>
+        </div>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="card stageWrap">
+      <h2>횡단면 Etch 시뮬레이션</h2>
+      <div id="hud">
+        <h3>🏆 실시간 Top 3</h3>
+        <div id="rankList">-</div>
+      </div>
+      <canvas id="stage"></canvas>
+    </div>
+
+    <div class="card">
+      <h2>현황</h2>
+      <div class="status" id="status"></div>
+      <div class="board">
+        <h2>최종 등수</h2>
+        <table>
+          <thead><tr><th style="width:56px">순위</th><th>이름</th><th>상태</th><th>시간</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  const $ = s=>document.querySelector(s);
+  const namesEl = $('#names'), chips = $('#chips');
+  const btnAdd = $('#btnAdd'), btnClear = $('#btnClear'), btnStart = $('#btnStart'), btnReset = $('#btnReset'), btnShuffle = $('#btnShuffle');
+  const logEl = $('#log'), statusEl = $('#status'), tbody = $('#tbody');
+  const canvas = $('#stage'); const ctx = canvas.getContext('2d');
+  const hudList = $('#rankList');
+
+  // ==== audio (짧고 조용하게) ====
+  let ac; function beep(type='norm', vol=0.02, dur=0.12){
+    try{
+      if(!ac) ac = new (window.AudioContext||window.webkitAudioContext)();
+      const o = ac.createOscillator(); const g = ac.createGain();
+      let f = 440;
+      if(type==='start') f=220; else if(type==='swap') f=660; else if(type==='err') f=150; else if(type==='finish') f=880; else if(type==='super') f=820;
+      o.frequency.value=f; g.gain.value=vol;
+      o.connect(g); g.connect(ac.destination);
+      o.start(); o.stop(ac.currentTime+dur);
+    }catch(e){}
+  }
+
+  // ==== layout ====
+  const wafer = {};
+  function resize(){
+    const dpr = Math.max(1, window.devicePixelRatio||1);
+    canvas.width = Math.floor(canvas.clientWidth*dpr);
+    canvas.height = Math.floor(canvas.clientHeight*dpr);
+    ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr);
+    const padX = 32;
+    wafer.x = padX; wafer.w = canvas.clientWidth - padX*2;
+    wafer.h = Math.min(420, canvas.clientHeight - 120);
+    wafer.y = (canvas.clientHeight - wafer.h)/2;
+    wafer.innerH = wafer.h * 0.92;
+  }
+  resize(); window.addEventListener('resize', resize);
+
+  // ==== state ====
+  const ERR = { NONE:0, IGNITION:1, EPD_MIN:2, EPD_MAX:3, DOUBLE:4 };
+  const state = { players:[], running:false, startAt:0, locked:false, swapNext:0, chaos:0, slowmo:false, finished:false, swapCount:0, swapMax:3, finishSpeedSet:false };
+
+  // ==== UI helpers ====
+  function log(msg, level='info'){
+    const p = document.createElement('div');
+    const color = level==='err' ? 'var(--danger)' : level==='warn' ? 'var(--warn)' : 'var(--muted)';
+    p.style.color = color; p.textContent = msg; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight;
+  }
+  function parseNames(text){ return text.split(/[,\s]+/).map(s=>s.trim()).filter(Boolean); }
+
+  function renderChips(){
+    chips.innerHTML='';
+    state.players.forEach((p)=>{
+      const d = document.createElement('div'); d.className='tag'; d.textContent = p.name; chips.appendChild(d);
+    });
+    renderStatus();
+  }
+
+  // ==== participants ====
+  function addPlayersFromInput(){
+    const arr = parseNames(namesEl.value);
+    if(arr.length===0){ alert('이름을 입력하세요. (띄어쓰기, 쉼표, 줄바꿈 구분)'); return; }
+    const seen = new Set(state.players.map(p=>p.name));
+    arr.forEach(n=>{ if(!seen.has(n)) state.players.push({name:n}); });
+    namesEl.value=''; renderChips(); drawStatic();
+  }
+  function shufflePlayers(){
+    for(let i=state.players.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [state.players[i],state.players[j]]=[state.players[j],state.players[i]];
+    }
+    renderChips(); drawStatic();
+  }
+  function clearAll(){
+    if(state.running){ log('레이스 중 초기화 불가', 'warn'); return; }
+    state.players = []; tbody.innerHTML='';
+    state.locked=false; state.slowmo=false; state.finished=false; state.swapCount=0; state.finishSpeedSet=false;
+    renderChips(); ctx.clearRect(0,0,canvas.width,canvas.height); drawStatic();
+    btnStart.disabled=false; btnReset.disabled=true;
+    log('초기화 완료');
+  }
+  btnAdd.onclick = addPlayersFromInput;
+  btnClear.onclick = clearAll;
+  btnShuffle.onclick = shufflePlayers;
+
+  // ==== race setup ====
+  function decideErrorsAndTargets(){
+    const contenders = [];
+    const base = 12 + Math.random()*4;
+    state.players.forEach(p=>{
+      p.progress = 0; p.done=false; p.errType=0; p.errTriggered=false; p.note='';
+      p.phase = Math.random()*Math.PI*2;
+      p.boostMag = 0; p.boostEnd = 0;
+      p.superEligible = Math.random()<0.05; p.super=false; p.superTrigger = 5 + Math.random()*65; // 5% 슈퍼에치
+      p.finalRank = null;
+      p.msgText=''; p.msgUntil=0; p.msgCooldown=0; p.lastSpd=null;
+      p.lateBoostUsed = false;
+      if(Math.random()<0.10){
+        p.errType = [ERR.IGNITION, ERR.EPD_MIN, ERR.EPD_MAX, ERR.DOUBLE][Math.floor(Math.random()*4)];
+      }
+    });
+    state.players.forEach(p=>{ if(p.errType!==ERR.IGNITION && p.errType!==ERR.EPD_MIN) contenders.push(p); });
+    const m = contenders.length;
+    const gaps = Array.from({length:m}, (_,i)=> m===1 ? 0 : (i*(0.18/(m-1))));
+    for(let i=gaps.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [gaps[i],gaps[j]]=[gaps[j],gaps[i]];}
+    contenders.forEach((p,i)=>{
+      p.targetT = base + gaps[i];
+      p.baseSpeed = 100 / p.targetT;
+      p.noiseAmp = 1.0 + Math.random()*1.0;
+      p.noiseFreq = 1.2 + Math.random()*2.0;
+    });
+    state.players.filter(p=>p.errType===ERR.IGNITION).forEach(p=>{ p.baseSpeed=0; p.done=true; p.finishTime=Infinity; p.note='IGNITION FAIL!'; });
+    state.players.filter(p=>p.errType===ERR.EPD_MIN).forEach(p=>{
+      p.stopAt = 30 + Math.random()*60; p.targetT = 8 + Math.random()*4; p.baseSpeed = p.stopAt / p.targetT;
+      p.noiseAmp = 0.8; p.noiseFreq=1.4;
+    });
+    state.players.filter(p=>p.errType===ERR.EPD_MAX).forEach(p=>{
+      const over = 101 + Math.random()*4; p.targetT = base + (Math.random()*0.18); p.baseSpeed = over / p.targetT;
+    });
+    state.players.filter(p=>p.errType===ERR.DOUBLE && !p.baseSpeed).forEach(p=>{
+      p.targetT = base + Math.random()*0.18; p.baseSpeed = 100/p.targetT;
+    });
+  }
+
+  function startRace(){
+    if(state.running){ log('이미 진행 중', 'warn'); return; }
+    if(state.players.length<2){ alert('최소 2명 이상 참가자를 추가하세요.'); return; }
+    decideErrorsAndTargets();
+    state.running = true; state.locked=false; state.slowmo=false; state.finished=false; state.swapCount=0; state.finishSpeedSet=false;
+    state.startAt = performance.now();
+    state.swapNext = state.startAt + 1200 + Math.random()*800;
+    state.chaos = 0;
+    btnStart.disabled = true; btnReset.disabled = true;
+    log('플라즈마 점화… 에칭 시작!'); beep('start', 0.02, 0.18);
+    state.players.forEach(p=>{ if(p.errType===ERR.IGNITION) log(p.name+': IGNITION FAIL!','err'); });
+    requestAnimationFrame(step);
+  }
+  function resetRace(){
+    if(state.running){ log('레이스 중 리셋 불가', 'warn'); return; }
+    state.players.forEach(p=>{ p.progress=0; p.done=false; p.note=''; p.boostEnd=0; p.boostMag=0; p.finishTime=undefined; p.finalRank=null; p.lateBoostUsed=false; p.super=false; });
+    tbody.innerHTML=''; renderChips(); drawStatic(); state.slowmo=false; state.finished=false; state.swapCount=0; state.finishSpeedSet=false;
+    btnStart.disabled=false; btnReset.disabled=true;
+    log('장비 리셋 완료');
+  }
+  btnStart.onclick = startRace; btnReset.onclick = resetRace;
+
+  // ==== draw helpers ====
+  function drawStatic(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawWafer(ctx); drawGuides(ctx);
+  }
+  function drawWafer(toCtx){
+    toCtx.save();
+    toCtx.fillStyle = '#0f1622'; toCtx.strokeStyle = 'rgba(34,211,238,.35)'; toCtx.lineWidth = 2;
+    toCtx.fillRect(wafer.x, wafer.y, wafer.w, wafer.h);
+    toCtx.strokeRect(wafer.x, wafer.y, wafer.w, wafer.h);
+    toCtx.globalAlpha = 0.18; toCtx.strokeStyle = 'rgba(167,139,250,.45)';
+    for(let y=wafer.y+10; y<wafer.y+wafer.h; y+=14){
+      toCtx.beginPath(); toCtx.moveTo(wafer.x, y); toCtx.lineTo(wafer.x+wafer.w, y); toCtx.stroke();
+    }
+    toCtx.globalAlpha = 1; toCtx.restore();
+  }
+  function laneX(i, n){
+    const pad = 28; const innerW = wafer.w - pad*2;
+    return wafer.x + pad + innerW * ((i+0.5)/n);
+  }
+  function drawGuides(toCtx){
+    const n = state.players.length||1;
+    for(let i=0;i<n;i++){
+      const x = laneX(i,n);
+      toCtx.save();
+      toCtx.strokeStyle = 'rgba(255,255,255,.08)'; toCtx.lineWidth = 1;
+      toCtx.strokeRect(x-12, wafer.y+6, 24, wafer.innerH-6);
+      toCtx.restore();
+    }
+  }
+
+  // ==== particles ====
+  const particles = [];
+  function spawnSpark(x,y,h,boost=1){
+    const cnt = 2 + Math.floor(Math.random()*(boost>1?4:2));
+    for(let i=0;i<cnt;i++){
+      const ang = Math.PI + (Math.random()-0.5)*Math.PI*0.7;
+      const spd = (boost>1?2.4:1.3) + Math.random()*1.2;
+      const life = 420 + Math.random()*420;
+      particles.push({x,y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life,age:0,h});
+    }
+  }
+  function stepSparks(dt){
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i]; p.age += dt;
+      const k = dt/16; p.x += p.vx*k; p.y += p.vy*k; p.vx*=0.985; p.vy*=0.985;
+      const a = Math.max(0,1 - p.age/p.life); if(a<=0){ particles.splice(i,1); continue; }
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      ctx.fillStyle = `hsla(${p.h}, 100%, ${55*a+30}%, ${0.9*a})`;
+      ctx.beginPath(); ctx.arc(p.x,p.y, 1.8*a+0.6, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ==== labels ====
+  function drawNameTag(toCtx, text, x, y, color='rgba(214,226,241,.95)'){
+    const padX = 8, h = 18, rx = 9;
+    toCtx.save();
+    toCtx.font = '700 12px ui-sans-serif, system-ui';
+    const w = toCtx.measureText(text).width + padX*2;
+    toCtx.fillStyle = 'rgba(0,0,0,.35)'; roundRect(toCtx, x - w/2, y, w, h, rx); toCtx.fill();
+    toCtx.strokeStyle = color; toCtx.lineWidth = 1; roundRect(toCtx, x - w/2, y, w, h, rx); toCtx.stroke();
+    toCtx.fillStyle = color; toCtx.textAlign='center'; toCtx.textBaseline='middle'; toCtx.fillText(text, x, y + h/2 + 1);
+    toCtx.restore();
+  }
+  function drawBubble(toCtx, text, x, y, hue){
+    toCtx.save();
+    toCtx.font = '800 11px ui-sans-serif, system-ui';
+    const w = toCtx.measureText(text).width + 12;
+    toCtx.fillStyle=`hsla(${hue}, 90%, 60%, .18)`; roundRect(toCtx, x - w/2, y, w, 16, 8); toCtx.fill();
+    toCtx.strokeStyle=`hsla(${hue}, 90%, 60%, .7)`; toCtx.lineWidth=1; roundRect(toCtx, x - w/2, y, w, 16, 8); toCtx.stroke();
+    toCtx.fillStyle='rgba(236,253,245,.95)'; toCtx.textAlign='center'; toCtx.textBaseline='middle'; toCtx.fillText(text, x, y+8);
+    toCtx.restore();
+  }
+  function drawRankBadge(toCtx, text, x, y){
+    toCtx.save();
+    toCtx.font = '800 12px ui-sans-serif, system-ui';
+    const w = toCtx.measureText(text).width + 12;
+    toCtx.fillStyle='rgba(2,6,23,.8)'; roundRect(toCtx, x - w/2, y, w, 16, 8); toCtx.fill();
+    toCtx.strokeStyle='rgba(34,211,238,.85)'; toCtx.lineWidth=1; roundRect(toCtx, x - w/2, y, w, 16, 8); toCtx.stroke();
+    toCtx.fillStyle='rgba(224,242,254,.95)'; toCtx.textAlign='center'; toCtx.textBaseline='middle'; toCtx.fillText(text, x, y+8);
+    toCtx.restore();
+  }
+
+  function carveTrench(p, idx, now){
+    const n = state.players.length; const x = laneX(idx,n);
+    const hue = (idx*53)%360;
+    const top = wafer.y+6;
+    const maxDepth = wafer.innerH-6;
+    const depth = Math.min(1.05, p.progress/100) * maxDepth;
+
+    drawProfile(ctx, x, top, depth, hue, state.slowmo || p.super);
+    const tipY = top + depth;
+
+    const boost = (state.slowmo||p.super? 1.6:1.0);
+    if(!p.done && p.progress>0 && p.errType!==ERR.IGNITION && Math.random() < 0.55*boost){
+      spawnSpark(x + (Math.random()*14-7), tipY, hue, boost>1?2:1);
+    }
+
+    const jitter = Math.sin(now*0.02 + p.phase)*2;
+    const tagColor = p.super? 'rgba(250,204,21,.95)' : (p.done ? (p.note && p.note.includes('ERR')? 'rgba(239,68,68,.95)' : (p.note==='DOUBLE ETCH!'?'rgba(245,158,11,.95)':'rgba(16,185,129,.95)')) : 'rgba(214,226,241,.95)');
+    const label = p.super? `${p.name} ⚡` : ((p.done && p.note && p.note!=='DONE')? `${p.name} • ${p.note}` : p.name);
+    drawNameTag(ctx, label, x + jitter, tipY + 6, tagColor);
+
+    if(now < p.msgUntil && p.msgText){ drawBubble(ctx, p.msgText, x + jitter, tipY - 24, hue); }
+
+    if(state.finished){
+      let badge = '';
+      if(p.finalRank!=null){ badge = `${p.finalRank}위`; }
+      else if(p.note==='IGNITION FAIL!'){ badge = 'IGNITION FAIL!'; }
+      else if(p.note==='DOUBLE ETCH!'){ badge = 'DOUBLE ETCH!'; }
+      else if(p.note && p.note.includes('ERR')){ badge = p.note; }
+      if(badge){ drawRankBadge(ctx, badge, x + jitter, tipY + 26); }
+    }
+  }
+
+  function drawProfile(toCtx, x, top, depth, hue, strong){
+    const maxDepth = wafer.innerH-6;
+    const wTop = 26, wBottom = 20;
+    const w = (wTop - (wTop - wBottom) * (depth/maxDepth));
+    const half = w/2;
+    const rough = (y)=> Math.sin(y*0.08)*1.1 + Math.sin(y*0.23)*0.55;
+
+    const steps = 10;
+    const path = new Path2D();
+    path.moveTo(x - half + rough(0), top);
+    for(let i=1;i<=steps;i++){
+      const yy = top + (depth/steps)*i;
+      const hw = (w/2) - (i/steps)*2.0;
+      path.lineTo(x - hw + rough(yy), yy);
+    }
+    for(let i=steps;i>=0;i--){
+      const yy = top + (depth/steps)*i;
+      const hw = (w/2) - (i/steps)*2.0;
+      path.lineTo(x + hw - rough(yy), yy);
+    }
+    path.closePath();
+
+    // 제거(에칭)
+    toCtx.save();
+    toCtx.globalCompositeOperation='destination-out';
+    toCtx.fill(path);
+    toCtx.restore();
+
+    // 빛 반사/플라즈마 느낌
+    toCtx.save();
+    const g1 = toCtx.createLinearGradient(x, top, x, top+depth);
+    g1.addColorStop(0, `hsla(${hue},90%,60%,${strong? .22:.12})`);
+    g1.addColorStop(1, `hsla(${hue},90%,60%,${strong? .48:.28})`);
+    toCtx.globalCompositeOperation='lighter';
+    toCtx.fillStyle = g1; toCtx.fill(path);
+    if(strong){ toCtx.strokeStyle=`hsla(${hue},100%,75%,.42)`; toCtx.lineWidth=0.8; toCtx.stroke(path); }
+    toCtx.restore();
+
+    // 단면 윤곽
+    toCtx.save();
+    toCtx.globalCompositeOperation='source-over';
+    toCtx.strokeStyle = `hsla(${hue},100%,75%,.9)`;
+    toCtx.lineWidth = 1.1;
+    toCtx.stroke(path);
+    toCtx.restore();
+  }
+
+  function drawLeaderLine(leader){
+    if(!leader) return;
+    const idx = state.players.indexOf(leader);
+    const n = state.players.length;
+    const x = laneX(idx,n);
+    const top = wafer.y+6;
+    const maxDepth = wafer.innerH-6;
+    const depth = Math.min(1.05, leader.progress/100) * maxDepth;
+    const y = top + depth;
+
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.strokeStyle='rgba(34,211,238,.85)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(wafer.x, y); ctx.lineTo(wafer.x+wafer.w, y); ctx.stroke();
+    ctx.strokeStyle='rgba(168,85,247,.6)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(wafer.x, y-2); ctx.lineTo(wafer.x+wafer.w, y-2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wafer.x, y+2); ctx.lineTo(wafer.x+wafer.w, y+2); ctx.stroke();
+
+    const label = `1위 ${leader.name}`;
+    ctx.font = '800 12px ui-sans-serif, system-ui';
+    const lw = ctx.measureText(label).width + 14;
+    ctx.fillStyle='rgba(2,6,23,.75)';
+    roundRect(ctx, x - lw/2, y + 8, lw, 16, 8); ctx.fill();
+    ctx.strokeStyle='rgba(34,211,238,.9)'; ctx.lineWidth=1;
+    roundRect(ctx, x - lw/2, y + 8, lw, 16, 8); ctx.stroke();
+    ctx.fillStyle='rgba(224,242,254,.95)';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(label, x, y + 8 + 8);
+    ctx.restore();
+  }
+
+  function currentRanking(){
+    const arr = state.players.map(p=>p);
+    arr.sort((a,b)=>{
+      const ap = Math.min(105, a.progress||0), bp = Math.min(105, b.progress||0);
+      if(ap!==bp) return bp-ap;
+      if(a.finishTime!=null && b.finishTime!=null) return a.finishTime - b.finishTime;
+      return (a.targetT||999) - (b.targetT||999);
+    });
+    return arr;
+  }
+  function updateHUD(){
+    const list = currentRanking().slice(0,3);
+    hudList.innerHTML = list.map((p,i)=>{
+      const color = i===0? 'var(--accent)' : i===1? 'var(--violet)' : 'var(--ok)';
+      return `<div style="display:flex;justify-content:space-between;gap:12px;">
+        <span style="color:${color};font-weight:800">${i+1}.</span>
+        <span style="flex:1">${p.name}</span>
+        <span style="opacity:.8">${Math.min(105,p.progress).toFixed(1)}%</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ==== race loop ====
+  let last = performance.now();
+  function avgProgress(){ const arr = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION); return arr.length? arr.reduce((a,b)=>a+b.progress,0)/arr.length : 0; }
+  function scheduleSwap(now){
+    if(state.swapCount >= state.swapMax) return;
+    state.swapNext = now + 1600 + Math.random()*1200; // 완만
+    state.chaos = Math.min(1, state.chaos + 0.06);
+    const active = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION && p.errType!==ERR.EPD_MIN && !p.super);
+    if(active.length < 2) return;
+    active.sort((a,b)=>b.progress-a.progress);
+    const half = Math.floor(active.length/2);
+    const front = active.slice(0, half||1);
+    const back = active.slice(half||1);
+    front.forEach(p=>{ p.boostMag = -(0.06 + Math.random()*0.10 + 0.12*state.chaos); p.boostEnd = now + 320 + Math.random()*260; });
+    back.forEach(p=>{ p.boostMag = +(0.12 + Math.random()*0.16 + 0.18*state.chaos); p.boostEnd = now + 420 + Math.random()*360; });
+    state.swapCount++; beep('swap', 0.015, 0.06);
+  }
+
+  function step(now){
+    let dt = Math.min(50, now - last); last = now;
+    if(state.slowmo) dt *= 0.6;
+
+    if(state.running){
+      if(now >= state.swapNext) scheduleSwap(now);
+
+      let allDone = true;
+      const t = (now - state.startAt)/1000;
+
+      // 슬로모 진입
+      if(!state.locked && avgProgress() >= 90){
+        state.locked = true; state.slowmo = true; log('리플렉트 상승! 슬로모션 진입', 'warn');
+      }
+
+      const racers = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION);
+      const sorted = [...racers].sort((a,b)=>b.progress-a.progress);
+      const leaderProgress = (sorted[0] && sorted[0].progress) || 0;
+
+      for(const p of state.players){
+        if(p.done) continue;
+        if(p.errType===ERR.IGNITION){ p.done=true; p.finishTime=Infinity; p.note='IGNITION FAIL!'; continue; }
+
+        // 5% 슈퍼에치: 속도 제한 무시하고 100%까지 단숨에
+        if(!p.super && p.superEligible && p.progress >= p.superTrigger){
+          p.super = true; beep('super',0.02,0.16); log(`${p.name}: SUPER!`, 'warn');
+        }
+
+        let spd;
+        if(p.super){
+          spd = 280; // 매우 빠르게
+        } else {
+          spd = (state.locked && p.finishSpeed!=null) ? p.finishSpeed : (p.baseSpeed||0);
+          const wobble = Math.sin(p.phase + t*Math.PI*2*(p.noiseFreq||1.5)) * (p.noiseAmp||1);
+          spd += wobble * 0.5;
+
+          // 스왑 펄스 영향
+          if(p.boostEnd && now < p.boostEnd) spd *= (1 + p.boostMag);
+          else { p.boostMag = 0; p.boostEnd = 0; }
+
+          // 전반부 가벼운 밴딩
+          const rank = sorted.indexOf(p);
+          if(!state.locked){
+            const bandLo=0.96, bandHi=1.08;
+            const k = (racers.length>1? (racers.length-1-rank)/(racers.length-1) : 0);
+            spd *= (bandLo + k*(bandHi-bandLo));
+          }
+        }
+
+        // 막판 역전: 80% 이후 뒤처진 선수 가속 기회
+        if(!p.lateBoostUsed && !p.done && p.progress >= 80 && p.progress < 99){
+          const behind = (leaderProgress - p.progress);
+          if(behind > 1.5){
+            const chance = Math.min(0.6, 0.15 + behind*0.08 + Math.random()*0.2);
+            if(Math.random() < chance){
+              p.lateBoostUsed = true;
+              const mag = 0.8 + Math.random()*1.6 + Math.min(2.2, behind*0.12);
+              p.boostMag = mag; p.boostEnd = now + 600 + Math.random()*900;
+              p.msgText = '올 파라미터 안정화!'; p.msgUntil = now + 1200; p.msgCooldown = now + 1400;
+              beep('super',0.02,0.14);
+            }
+          }
+        }
+
+        // 속도 변화 버블
+        const eff = Math.max(0.0001, spd);
+        if(p.lastSpd!=null && now>p.msgCooldown){
+          const ratio = eff / Math.max(0.0001, p.lastSpd);
+          if(ratio <= 0.82){ p.msgText = '리플렉트 상승!'; p.msgUntil = now + 1000; p.msgCooldown = now + 1200; }
+          else if(ratio >= 1.18){ p.msgText = '올 파라미터 안정화!'; p.msgUntil = now + 1000; p.msgCooldown = now + 1200; }
+        }
+        p.lastSpd = eff;
+
+        // 진행/완료/오류 판정
+        if(p.errType===ERR.EPD_MIN){
+          if(!p.errTriggered){
+            p.progress += Math.max(0, p.super? 280 : spd) * (dt/1000);
+            if(!p.super && p.progress >= p.stopAt){ p.errTriggered=true; p.done=true; p.finishTime=Infinity; p.note='EPD MIN ERR'; log(p.name+': '+p.note,'err'); beep('err',0.02,0.1); }
+            else { allDone=false; }
+          }
+          continue;
+        }
+
+        p.progress += Math.max(0, spd) * (dt/1000);
+
+        if(p.errType===ERR.EPD_MAX){
+          if(p.progress>=102){ p.done=true; p.finishTime=(now-state.startAt); p.note='EPD MAX ERR'; log(p.name+': '+p.note,'err'); beep('err',0.02,0.1); }
+          else { allDone=false; }
+        } else {
+          if(p.progress>=100){ p.done=true; p.finishTime=(now-state.startAt); p.note = (p.errType===ERR.DOUBLE)? 'DOUBLE ETCH!' : 'DONE'; if(p.errType===ERR.DOUBLE){ log(p.name+': '+p.note,'warn'); beep('swap',0.015,0.08);} else {beep('finish',0.02,0.12);} }
+          else { allDone=false; }
+        }
+      }
+
+      // 결승 구간 보정(슬로모 진입 직후 1회)
+      if(state.locked && !state.finishSpeedSet){
+        const survivors = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION && p.errType!==ERR.EPD_MIN && !p.super);
+        const baseFinish = (now - state.startAt)/1000 + 1.2 + Math.random()*0.2;
+        survivors.forEach((p,i)=>{
+          const remain = Math.max(0, 100 - p.progress);
+          const jitter = (i/(survivors.length-1+1e-9))*0.18;
+          const targetArrival = baseFinish + jitter;
+          p.finishSpeed = remain / Math.max(0.2, targetArrival);
+        });
+        state.finishSpeedSet = true;
+      }
+
+      // draw
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawWafer(ctx); drawGuides(ctx);
+      state.players.forEach((p,i)=> carveTrench(p,i, now));
+      drawLeaderLine(currentRanking()[0]);
+      stepSparks(dt);
+      updateHUD();
+
+      if(allDone){
+        state.running=false; state.finished=true;
+        btnReset.disabled=false; btnStart.disabled=false;
+        log('레이스 종료 — 결과 집계 완료');
+        assignRanks(); renderStatus(); renderBoard(); beep('finish',0.025,0.2);
+      } else {
+        renderStatus();
+      }
+    } else {
+      // 종료 후에도 트렌치 유지
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawWafer(ctx); drawGuides(ctx);
+      if(state.finished){
+        const now2 = performance.now();
+        state.players.forEach((p,i)=> carveTrench(p,i, now2));
+        drawLeaderLine(currentRanking()[0]);
+      }
+      updateHUD();
+    }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  function assignRanks(){
+    const finishers = state.players.filter(p=>p.done && p.note!=='DOUBLE ETCH!' && !(p.note&&p.note.includes('ERR')) && p.finishTime!==Infinity)
+      .sort((a,b)=>a.finishTime-b.finishTime);
+    let r = 1; finishers.forEach(p=>p.finalRank=r++);
+    state.players.filter(p=>p.note==='DOUBLE ETCH!').forEach(p=>p.finalRank=null);
+    state.players.filter(p=>p.note && (p.note.includes('ERR') || p.note==='IGNITION FAIL!')).forEach(p=>p.finalRank=null);
+  }
+
+  
+  function renderStatus(){
+    statusEl.innerHTML='';
+  
+    let arr;
+    if(state.finished){
+      arr = state.players.slice().sort((a,b)=>{
+        if(a.finishTime===undefined || a.finishTime===Infinity) return 1;
+        if(b.finishTime===undefined || b.finishTime===Infinity) return -1;
+        return a.finishTime - b.finishTime;
+      });
+    } else {
+      arr = currentRanking();
+    }
+
+    arr.forEach((p,i)=>{
+      const d = document.createElement('div'); d.className='chip';
+      const stat = p.done ? (p.note||'DONE') : (p.super?'가속중':'진행중');
+      d.innerHTML = `<span style="width:10px;height:10px;border-radius:999px;background:${
+        p.done ? (
+          p.note && p.note.includes('ERR')
+            ? 'var(--danger)'
+            : (p.note==='DOUBLE ETCH!' ? 'var(--warn)' : 'var(--ok)')
+        ) : (p.super?'var(--warn)':'var(--accent)')
+      };display:inline-block"></span>`+
+      `<b>${i+1}. ${p.name}</b> <span style="opacity:.75">&nbsp;${Math.min(p.progress,105).toFixed(1)}% • ${stat}</span>`;
+      statusEl.appendChild(d);
+    });
+  }
+
+
+  function renderBoard(){
+    tbody.innerHTML='';
+    const done = state.players.filter(p=>p.done && p.note!=='DOUBLE ETCH!' && !(p.note&&p.note.includes('ERR')) && p.finishTime!==Infinity).sort((a,b)=>a.finishTime-b.finishTime);
+    let rank=1;
+    done.forEach(p=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${rank++}</td><td>${p.name}</td><td><span class="pill ok">완료</span></td><td>${(p.finishTime/1000).toFixed(2)}s</td>`;
+      tbody.appendChild(tr);
+    });
+    state.players.filter(p=>p.done && p.note==='DOUBLE ETCH!').forEach(p=>{
+      const tr = document.createElement('tr'); tr.innerHTML = `<td>-</td><td>${p.name}</td><td><span class="pill warn">DOUBLE ETCH!</span></td><td>${(p.finishTime/1000).toFixed(2)}s</td>`; tbody.appendChild(tr);
+    });
+    state.players.filter(p=>p.note==='IGNITION FAIL!').forEach(p=>{
+      const tr = document.createElement('tr'); tr.innerHTML = `<td>DNF</td><td>${p.name}</td><td><span class="pill err">IGNITION FAIL!</span></td><td>IGNITION FAIL!</td>`; tbody.appendChild(tr);
+    });
+    state.players.filter(p=>p.note&&p.note.includes('ERR') && p.note!=='IGNITION FAIL!').forEach(p=>{
+      const tr = document.createElement('tr'); tr.innerHTML = `<td>DNF</td><td>${p.name}</td><td><span class="pill err">${p.note}</span></td><td>-</td>`; tbody.appendChild(tr);
+    });
+  }
+
+  function roundRect(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  // 최초 렌더
+  drawStatic();
+});
+</script>
+</body>
+</html>
