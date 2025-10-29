@@ -494,7 +494,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // 슬로모 진입
       if(!state.locked && avgProgress() >= 90){
-        state.locked = true; state.slowmo = true; log('리플렉트 상승! 슬로모션 진입', 'warn');
+        state.locked = true; state.slowmo = true; log('Main etch end! Over etch start!', 'warn');
       }
 
       const racers = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION);
@@ -600,7 +600,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if(allDone){
         state.running=false; state.finished=true;
         btnReset.disabled=false; btnStart.disabled=false;
-        log('레이스 종료 — 결과 집계 완료');
+        log('Etch end — 결과 집계 완료');
         assignRanks(); renderStatus(); renderBoard(); beep('finish',0.025,0.2);
       } else {
         renderStatus();
