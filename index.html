@@ -645,7 +645,7 @@ updateHUD();
 
       // 다음 프레임 요청 (항상 실행)
 requestAnimationFrame(step);
-
+    }
       
   function assignRanks(){
     const finishers = state.players.filter(p=>p.done && p.note!=='DOUBLE ETCH!' && !(p.note&&p.note.includes('ERR')) && p.finishTime!==Infinity)
