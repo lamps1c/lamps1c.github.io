@@ -433,12 +433,12 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.font = '800 12px ui-sans-serif, system-ui';
     const lw = ctx.measureText(label).width + 14;
     ctx.fillStyle='rgba(2,6,23,.75)';
-    roundRect(ctx, x - lw/2, y + 8, lw, 16, 8); ctx.fill();
+    roundRect(ctx, x - lw/2, y - 28, lw, 16, 8); ctx.fill();
     ctx.strokeStyle='rgba(34,211,238,.9)'; ctx.lineWidth=1;
-    roundRect(ctx, x - lw/2, y + 8, lw, 16, 8); ctx.stroke();
+    roundRect(ctx, x - lw/2, y - 28, lw, 16, 8); ctx.stroke();
     ctx.fillStyle='rgba(224,242,254,.95)';
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(label, x, y + 8 + 8);
+    ctx.fillText(label, x, y - 28 + 8);
     ctx.restore();
   }
 
