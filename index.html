@@ -432,6 +432,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const maxDepth = wafer.innerH-6;
     const depth = Math.min(1.05, leader.progress/100) * maxDepth;
     const y = top + depth;
+    const w = ctx.measureText(label).width + 14;
 
     // 1위 선 표시 (기존과 동일)
     ctx.save();
@@ -708,7 +709,7 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.arcTo(x+w,y+h,x,y+h,r);
     ctx.arcTo(x,y+h,x,y,r);
     ctx.arcTo(x,y,x+w,y,r);
-    ctx.closePath();
+    ctx.closePath();}
   }
 
   // 최초 렌더
