@@ -175,7 +175,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderChips(); drawStatic();
   }
   function clearAll(){
-    if(state.running){ log('레이스 중 초기화 불가', 'warn'); return; }
+    if(state.running){ log('에치 중 초기화 불가', 'warn'); return; }
     state.players = []; tbody.innerHTML='';
     state.locked=false; state.slowmo=false; state.finished=false; state.swapCount=0; state.finishSpeedSet=false;
     renderChips(); ctx.clearRect(0,0,canvas.width,canvas.height); drawStatic();
@@ -234,12 +234,12 @@ window.addEventListener('DOMContentLoaded', () => {
     state.swapNext = state.startAt + 1200 + Math.random()*800;
     state.chaos = 0;
     btnStart.disabled = true; btnReset.disabled = true;
-    log('플라즈마 점화… 에칭 시작!'); beep('start', 0.02, 0.18);
+    log('Plasma on! Main etch Start!'); beep('start', 0.02, 0.18);
     state.players.forEach(p=>{ if(p.errType===ERR.IGNITION) log(p.name+': IGNITION FAIL!','err'); });
     requestAnimationFrame(step);
   }
   function resetRace(){
-    if(state.running){ log('레이스 중 리셋 불가', 'warn'); return; }
+    if(state.running){ log('에치 중 리셋 불가', 'warn'); return; }
     state.players.forEach(p=>{ p.progress=0; p.done=false; p.note=''; p.boostEnd=0; p.boostMag=0; p.finishTime=undefined; p.finalRank=null; p.lateBoostUsed=false; p.super=false; });
     tbody.innerHTML=''; renderChips(); drawStatic(); state.slowmo=false; state.finished=false; state.swapCount=0; state.finishSpeedSet=false;
     btnStart.disabled=false; btnReset.disabled=true;
