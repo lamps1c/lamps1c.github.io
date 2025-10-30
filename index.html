@@ -609,10 +609,13 @@ window.addEventListener('DOMContentLoaded', () => {
       // 종료 후에도 트렌치 유지
       ctx.clearRect(0,0,canvas.width,canvas.height);
       drawWafer(ctx); drawGuides(ctx);
-      if(state.finished){
-        const now2 = performance.now();
-        state.players.forEach((p,i)=> carveTrench(p,i, now2));
-        drawLeaderLine(currentRanking()[0]);
+      if (state.finished) {
+  const now2 = performance.now();
+  state.players.forEach((p,i)=> carveTrench(p,i, now2));
+  // 완주 후에는 drawLeaderLine 호출 안 함 (표찰 없음)
+} else {
+  drawLeaderLine(currentRanking()[0]); // 진행 중일 때만 표찰 표시
+}
       }
       updateHUD();
     }
