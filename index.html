@@ -283,26 +283,35 @@ window.addEventListener('DOMContentLoaded', () => {
   // ==== particles ====
   const particles = [];
   function spawnSpark(x,y,h,boost=1){
-    const cnt = 2 + Math.floor(Math.random()*(boost>1?4:2));
-    for(let i=0;i<cnt;i++){
-      const ang = Math.PI + (Math.random()-0.5)*Math.PI*0.7;
-      const spd = (boost>1?2.4:1.3) + Math.random()*1.2;
-      const life = 420 + Math.random()*420;
-      particles.push({x,y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life,age:0,h});
-    }
+  const cnt = 1 + Math.floor(Math.random()*(boost>1?2:1)); // 기존 2-4개에서 1-2개로 감소
+  for(let i=0;i<cnt;i++){
+    const ang = Math.PI + (Math.random()-0.5)*Math.PI*0.7;
+    const spd = (boost>1?1.8:1.0) + Math.random()*0.8; // 속도도 약간 감소
+    const life = 300 + Math.random()*300; // 수명도 약간 감소
+    particles.push({x,y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,life,age:0,h});
   }
+}
+
   function stepSparks(dt){
-    for(let i=particles.length-1;i>=0;i--){
-      const p = particles[i]; p.age += dt;
-      const k = dt/16; p.x += p.vx*k; p.y += p.vy*k; p.vx*=0.985; p.vy*=0.985;
-      const a = Math.max(0,1 - p.age/p.life); if(a<=0){ particles.splice(i,1); continue; }
-      ctx.save();
-      ctx.globalCompositeOperation='lighter';
-      ctx.fillStyle = `hsla(${p.h}, 100%, ${55*a+30}%, ${0.9*a})`;
-      ctx.beginPath(); ctx.arc(p.x,p.y, 1.8*a+0.6, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i]; p.age += dt;
+    if(p.age >= p.life){ particles.splice(i,1); continue; }
+    
+    const k = dt/16; 
+    p.x += p.vx*k; p.y += p.vy*k; 
+    p.vx *= 0.985; p.vy *= 0.985;
+    
+    const a = 1 - p.age/p.life;
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.fillStyle = `hsla(${p.h}, 100%, ${55*a+30}%, ${0.7*a})`; // 알파값 0.9 → 0.7로 감소
+    ctx.beginPath(); 
+    ctx.arc(p.x,p.y, 1.5*a+0.5, 0, Math.PI*2); // 크기도 약간 감소
+    ctx.fill();
+    ctx.restore();
   }
+}
+
 
   // ==== labels ====
   function drawNameTag(toCtx, text, x, y, color='rgba(214,226,241,.95)'){
@@ -345,9 +354,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const tipY = top + depth;
 
     const boost = (state.slowmo||p.super? 1.6:1.0);
-    if(!p.done && p.progress>0 && p.errType!==ERR.IGNITION && Math.random() < 0.55*boost){
-      spawnSpark(x + (Math.random()*14-7), tipY, hue, boost>1?2:1);
-    }
+    if(!p.done && p.progress>0 && p.errType!==ERR.IGNITION && Math.random() < 0.35*boost){ // 0.55 → 0.35로 변경
+  spawnSpark(x + (Math.random()*14-7), tipY, hue, boost>1?1.5:1); // boost 배수도 2→1.5로 조정
+}
+
 
     const jitter = Math.sin(now*0.02 + p.phase)*2;
     const tagColor = p.super? 'rgba(250,204,21,.95)' : (p.done ? (p.note && p.note.includes('ERR')? 'rgba(239,68,68,.95)' : (p.note==='DOUBLE ETCH!'?'rgba(245,158,11,.95)':'rgba(16,185,129,.95)')) : 'rgba(214,226,241,.95)');
@@ -413,7 +423,7 @@ window.addEventListener('DOMContentLoaded', () => {
     toCtx.restore();
   }
 
-  function drawLeaderLine(leader){
+  function drawLeaderLine(leader) {
     if(!leader) return;
     const idx = state.players.indexOf(leader);
     const n = state.players.length;
@@ -423,6 +433,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const depth = Math.min(1.05, leader.progress/100) * maxDepth;
     const y = top + depth;
 
+    // 1위 선 표시 (기존과 동일)
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.strokeStyle='rgba(34,211,238,.85)'; ctx.lineWidth=3;
@@ -431,18 +442,22 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.beginPath(); ctx.moveTo(wafer.x, y-2); ctx.lineTo(wafer.x+wafer.w, y-2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(wafer.x, y+2); ctx.lineTo(wafer.x+wafer.w, y+2); ctx.stroke();
 
+    // 1위 라벨 위치 조정 (y + 20 → y + 30으로 변경)
     const label = `1위 ${leader.name}`;
     ctx.font = '800 12px ui-sans-serif, system-ui';
     const lw = ctx.measureText(label).width + 14;
     ctx.fillStyle='rgba(2,6,23,.75)';
-    roundRect(ctx, x - lw/2, y + 8, lw, 16, 8); ctx.fill();
+    roundRect(ctx, x - lw/2, y + 30, w, 16, 8); // y 위치 조정
+    ctx.fill();
     ctx.strokeStyle='rgba(34,211,238,.9)'; ctx.lineWidth=1;
-    roundRect(ctx, x - lw/2, y + 8, lw, 16, 8); ctx.stroke();
+    roundRect(ctx, x - lw/2, y + 30, w, 16, 8); // y 위치 조정
+    ctx.stroke();
     ctx.fillStyle='rgba(224,242,254,.95)';
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(label, x, y + 8 + 8);
+    ctx.fillText(label, x, y + 30 + 8); // y 위치 조정
     ctx.restore();
-  }
+}
+
 
   function currentRanking(){
     const arr = state.players.map(p=>p);
@@ -599,29 +614,34 @@ window.addEventListener('DOMContentLoaded', () => {
       stepSparks(dt);
       updateHUD();
 
-      if(allDone){
-        state.running=false; state.finished=true;
-        btnReset.disabled=false; btnStart.disabled=false;
-        log('Etch end — 결과 집계 완료');
-        assignRanks(); renderStatus(); renderBoard(); beep('finish',0.025,0.2);
-      } else {
-        renderStatus();
-      }
-    } else {
-      // 종료 후에도 트렌치 유지
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      drawWafer(ctx); drawGuides(ctx);
-      if(state.finished){
-        const now2 = performance.now();
-        state.players.forEach((p,i)=> carveTrench(p,i, now2));
-        drawLeaderLine(currentRanking()[0]);
-      }
-      updateHUD();
+        if(allDone){
+    state.running=false; state.finished=true;
+    btnReset.disabled=false; btnStart.disabled=false;
+    log('Etch end — 결과 집계 완료');
+    assignRanks(); 
+    renderStatus(); 
+    renderBoard(); 
+    beep('finish',0.025,0.2);
+    
+    const finalLeader = currentRanking()[0];
+    if(finalLeader) {
+        drawLeaderLine(finalLeader);
     }
-    requestAnimationFrame(step);
+  } else {
+    renderStatus();
   }
-  requestAnimationFrame(step);
 
+  // 렌더링 코드 (경기 중/종료 후 공통)
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawWafer(ctx); drawGuides(ctx);
+  if(state.finished){
+    const now2 = performance.now();
+    state.players.forEach((p,i)=> carveTrench(p,i, now2));
+    drawLeaderLine(currentRanking()[0]);
+  }
+  updateHUD();
+  requestAnimationFrame(step);
+}
   function assignRanks(){
     const finishers = state.players.filter(p=>p.done && p.note!=='DOUBLE ETCH!' && !(p.note&&p.note.includes('ERR')) && p.finishTime!==Infinity)
       .sort((a,b)=>a.finishTime-b.finishTime);
