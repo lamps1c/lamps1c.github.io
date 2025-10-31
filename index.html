@@ -461,6 +461,52 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.fillText(label, x, y - lh/2 - 10);
     ctx.restore();
 }
+function drawLastPlace(player) {
+    if (!player) return;
+    const idx = state.players.indexOf(player);
+    const n = state.players.length;
+    const x = laneX(idx, n);
+    const top = wafer.y + 6;
+    const maxDepth = wafer.innerH - 6;
+    const depth = Math.min(1.05, player.progress / 100) * maxDepth;
+    const y = top + depth;
+    const now = performance.now();
+
+    // 꼴찌 빨간색 강조 효과
+    ctx.save();
+    const flashIntensity = 0.5 + 0.5 * Math.sin(now * 0.01); // 깜빡임 효과
+    const hue = 0; // 빨간색
+    const saturation = 100;
+    const lightness = 50 + 20 * flashIntensity;
+
+    ctx.shadowColor = `hsla(${hue}, ${saturation}%, 50%, ${0.3 + flashIntensity * 0.4})`;
+    ctx.shadowBlur = 15;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    const label = `💥 ${player.name}`;
+    ctx.font = '800 15px ui-sans-serif, system-ui';
+    const lw = ctx.measureText(label).width + 30;
+    const lh = 26;
+
+    // 배경
+    ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${20 + 5 * flashIntensity}%, 0.8)`;
+    roundRect(ctx, x - lw / 2, y - lh - 8, lw, lh, 12);
+    ctx.fill();
+
+    // 테두리
+    ctx.strokeStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, 0.9)`;
+    ctx.lineWidth = 1 + flashIntensity;
+    roundRect(ctx, x - lw / 2, y - lh - 8, lw, lh, 12);
+    ctx.stroke();
+
+    // 텍스트
+    ctx.fillStyle = `hsla(${hue}, ${saturation}%, 90%, 1)`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y - lh / 2 - 8);
+    ctx.restore();
+}
 
 
   function currentRanking(){
