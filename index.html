@@ -411,7 +411,7 @@ window.addEventListener('DOMContentLoaded', () => {
     toCtx.restore();
   }
 
-  function drawLeaderLine(leader){
+  function drawLeaderLine(leader) {
     if(!leader) return;
     const idx = state.players.indexOf(leader);
     const n = state.players.length;
@@ -420,27 +420,48 @@ window.addEventListener('DOMContentLoaded', () => {
     const maxDepth = wafer.innerH-6;
     const depth = Math.min(1.05, leader.progress/100) * maxDepth;
     const y = top + depth;
+    const now = performance.now();
 
+    // 1위 무지개 효과
     ctx.save();
-    ctx.globalCompositeOperation='lighter';
-    ctx.strokeStyle='rgba(34,211,238,.85)'; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.moveTo(wafer.x, y); ctx.lineTo(wafer.x+wafer.w, y); ctx.stroke();
-    ctx.strokeStyle='rgba(168,85,247,.6)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(wafer.x, y-2); ctx.lineTo(wafer.x+wafer.w, y-2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(wafer.x, y+2); ctx.lineTo(wafer.x+wafer.w, y+2); ctx.stroke();
-
-    const label = `1위 ${leader.name}`;
-    ctx.font = '800 12px ui-sans-serif, system-ui';
-    const lw = ctx.measureText(label).width + 14;
-    ctx.fillStyle='rgba(2,6,23,.75)';
-    roundRect(ctx, x - lw/2, y + 8, lw, 16, 8); ctx.fill();
-    ctx.strokeStyle='rgba(34,211,238,.9)'; ctx.lineWidth=1;
-    roundRect(ctx, x - lw/2, y + 8, lw, 16, 8); ctx.stroke();
-    ctx.fillStyle='rgba(224,242,254,.95)';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(label, x, y + 8 + 8);
+    const hue = (now * 0.05) % 360; // 시간에 따라 색상 변화
+    ctx.shadowColor = `hsla(${hue}, 100%, 50%, 0.7)`;
+    ctx.shadowBlur = 20;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    const label = `👑 ${leader.name}`;
+    ctx.font = '800 16px ui-sans-serif, system-ui';
+    const lw = ctx.measureText(label).width + 30;
+    const lh = 28;
+    
+    // 무지개 그라데이션 배경
+    const gradient = ctx.createLinearGradient(x - lw/2, y - lh - 10, x + lw/2, y - 10);
+    gradient.addColorStop(0, 'rgba(255,0,0,0.8)');
+    gradient.addColorStop(0.2, 'rgba(255,165,0,0.8)');
+    gradient.addColorStop(0.4, 'rgba(255,255,0,0.8)');
+    gradient.addColorStop(0.6, 'rgba(0,128,0,0.8)');
+    gradient.addColorStop(0.8, 'rgba(0,0,255,0.8)');
+    gradient.addColorStop(1, 'rgba(128,0,128,0.8)');
+    
+    ctx.fillStyle = gradient;
+    roundRect(ctx, x - lw/2, y - lh - 10, lw, lh, 14);
+    ctx.fill();
+    
+    // 테두리
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2;
+    roundRect(ctx, x - lw/2, y - lh - 10, lw, lh, 14);
+    ctx.stroke();
+    
+    // 텍스트
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y - lh/2 - 10);
     ctx.restore();
-  }
+}
+
 
   function currentRanking(){
     const arr = state.players.map(p=>p);
@@ -593,7 +614,12 @@ window.addEventListener('DOMContentLoaded', () => {
       ctx.clearRect(0,0,canvas.width,canvas.height);
       drawWafer(ctx); drawGuides(ctx);
       state.players.forEach((p,i)=> carveTrench(p,i, now));
-      drawLeaderLine(currentRanking()[0]);
+const ranked = currentRanking();
+const leader = ranked[0];
+if (leader) drawLeaderLine(leader);
+if (ranked.length > 1) {
+    drawLastPlace(ranked[ranked.length-1]);
+}
       stepSparks(dt);
       updateHUD();
 
