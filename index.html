@@ -133,9 +133,12 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr);
     const padX = 32;
     wafer.x = padX; wafer.w = canvas.clientWidth - padX*2;
-    wafer.h = Math.min(420, canvas.clientHeight - 120);
+// 기존: wafer.h = Math.min(420, canvas.clientHeight - 120);
+wafer.h = Math.min(600, canvas.clientHeight - 50);  // 높이 증가
+
+
     wafer.y = (canvas.clientHeight - wafer.h)/2;
-    wafer.innerH = wafer.h * 0.92;
+wafer.innerH = wafer.h * 0.9;  // 내부 높이도 조정
   }
   resize(); window.addEventListener('resize', resize);
 
@@ -589,7 +592,7 @@ function step(now) {
         const t = (now - state.startAt) / 1000;
 
         // 슬로모 진입
-        if (!state.locked && avgProgress() >= 90) {
+        if (!state.locked && avgProgress() >= 70) {
             state.locked = true; 
             state.slowmo = true; 
             log('Main etch end! Over etch start!', 'warn');
@@ -601,7 +604,9 @@ function step(now) {
                 const idx = state.players.indexOf(leader);
                 const n = state.players.length;
                 zoomCenterX = laneX(idx, n);
-                zoomCenterY = wafer.y + wafer.h / 2;
+                // 기존: zoomCenterY = wafer.y + wafer.h / 2;
+                zoomCenterY = wafer.y + wafer.h * 0.7;  // 화면 하단 70% 지점을 중심으로
+
             }
             beep('super', 0.02, 0.2);
         }
@@ -732,16 +737,18 @@ function step(now) {
 
         // draw
         ctx.save();
-        if (zoomLevel !== 1) {
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.scale(zoomLevel, zoomLevel);
-            ctx.translate(-canvas.width / 2, -canvas.height / 2);
-            ctx.translate(
-                (1 - 1 / zoomLevel) * (canvas.width / 2 - zoomCenterX), 
-                (1 - 1 / zoomLevel) * (canvas.height / 2 - zoomCenterY)
-            );
-        }
+if (zoomLevel !== 1) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.translate(canvas.width / 2, canvas.height * 0.7);  // 세로 중심을 70%로 조정
+    ctx.scale(zoomLevel, zoomLevel);
+    ctx.translate(-canvas.width / 2, -canvas.height * 0.7);
+    // 기존 x축 이동은 유지하되 y축 이동을 줄임
+    ctx.translate(
+        (1 - 1/zoomLevel) * (canvas.width/2 - zoomCenterX), 
+        (1 - 1/zoomLevel) * (canvas.height*0.7 - zoomCenterY) * 0.5  // y축 이동량 50% 감소
+    );
+}
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawWafer(ctx); 
         drawGuides(ctx);
