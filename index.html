@@ -519,6 +519,34 @@ function drawLastPlace(player) {
     });
     return arr;
   }
+
+  
+function scheduleSwap(now) {
+    if (state.swapCount >= state.swapMax) return;
+    state.swapNext = now + 1600 + Math.random() * 1200;
+    state.chaos = Math.min(1, state.chaos + 0.06);
+    const active = state.players.filter(p => !p.done && p.errType !== ERR.IGNITION && p.errType !== ERR.EPD_MIN && !p.super);
+    if (active.length < 2) return;
+    
+    active.sort((a, b) => b.progress - a.progress);
+    const half = Math.floor(active.length / 2);
+    const front = active.slice(0, half || 1);
+    const back = active.slice(half || 1);
+    
+    front.forEach(p => {
+        p.boostMag = -(0.06 + Math.random() * 0.10 + 0.12 * state.chaos);
+        p.boostEnd = now + 320 + Math.random() * 260;
+    });
+    
+    back.forEach(p => {
+        p.boostMag = +(0.12 + Math.random() * 0.16 + 0.18 * state.chaos);
+        p.boostEnd = now + 420 + Math.random() * 360;
+    });
+    
+    state.swapCount++;
+    beep('swap', 0.015, 0.06);
+  }
+  
   function updateHUD(){
     const list = currentRanking().slice(0,3);
     hudList.innerHTML = list.map((p,i)=>{
@@ -531,47 +559,37 @@ function drawLastPlace(player) {
     }).join('');
   }
 
-  // ==== race loop ====
+// ==== race loop ====
 let last = performance.now();
 let zoomLevel = 1;
 let targetZoom = 1;
 let zoomCenterX = 0, zoomCenterY = 0;
 
-function avgProgress(){ const arr = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION); return arr.length? arr.reduce((a,b)=>a+b.progress,0)/arr.length : 0; }
-function scheduleSwap(now){
-    if(state.swapCount >= state.swapMax) return;
-    state.swapNext = now + 1600 + Math.random()*1200;
-    state.chaos = Math.min(1, state.chaos + 0.06);
-    const active = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION && p.errType!==ERR.EPD_MIN && !p.super);
-    if(active.length < 2) return;
-    active.sort((a,b)=>b.progress-a.progress);
-    const half = Math.floor(active.length/2);
-    const front = active.slice(0, half||1);
-    const back = active.slice(half||1);
-    front.forEach(p=>{ p.boostMag = -(0.06 + Math.random()*0.10 + 0.12*state.chaos); p.boostEnd = now + 320 + Math.random()*260; });
-    back.forEach(p=>{ p.boostMag = +(0.12 + Math.random()*0.16 + 0.18*state.chaos); p.boostEnd = now + 420 + Math.random()*360; });
-    state.swapCount++; beep('swap', 0.015, 0.06);
+function avgProgress() { 
+    const arr = state.players.filter(p => !p.done && p.errType !== ERR.IGNITION); 
+    return arr.length ? arr.reduce((a, b) => a + b.progress, 0) / arr.length : 0; 
 }
 
-function step(now){
-    let dt = Math.min(50, now - last); last = now;
-    if(state.slowmo) dt *= 0.6;
+function step(now) {
+    let dt = Math.min(50, now - last); 
+    last = now;
+    if (state.slowmo) dt *= 0.6;
 
     // 확대/축소 애니메이션
-    if(Math.abs(zoomLevel - targetZoom) > 0.01) {
+    if (Math.abs(zoomLevel - targetZoom) > 0.01) {
         zoomLevel += (targetZoom - zoomLevel) * 0.1;
     } else {
         zoomLevel = targetZoom;
     }
 
-    if(state.running){
-        if(now >= state.swapNext) scheduleSwap(now);
+    if (state.running) {
+        if (now >= state.swapNext) scheduleSwap(now);
 
         let allDone = true;
-        const t = (now - state.startAt)/1000;
+        const t = (now - state.startAt) / 1000;
 
         // 슬로모 진입
-        if(!state.locked && avgProgress() >= 90){
+        if (!state.locked && avgProgress() >= 90) {
             state.locked = true; 
             state.slowmo = true; 
             log('Main etch end! Over etch start!', 'warn');
@@ -579,93 +597,133 @@ function step(now){
             // 확대 효과 설정
             targetZoom = 1.5;
             const leader = currentRanking()[0];
-            if(leader) {
+            if (leader) {
                 const idx = state.players.indexOf(leader);
                 const n = state.players.length;
-                zoomCenterX = laneX(idx,n);
-                zoomCenterY = wafer.y + wafer.h/2;
+                zoomCenterX = laneX(idx, n);
+                zoomCenterY = wafer.y + wafer.h / 2;
             }
-            beep('super',0.02,0.2);
+            beep('super', 0.02, 0.2);
         }
 
-        const racers = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION);
-        const sorted = [...racers].sort((a,b)=>b.progress-a.progress);
+        const racers = state.players.filter(p => !p.done && p.errType !== ERR.IGNITION);
+        const sorted = [...racers].sort((a, b) => b.progress - a.progress);
         const leaderProgress = (sorted[0] && sorted[0].progress) || 0;
 
-        for(const p of state.players){
-            if(p.done) continue;
-            if(p.errType===ERR.IGNITION){ p.done=true; p.finishTime=Infinity; p.note='IGNITION FAIL!'; continue; }
+        for (const p of state.players) {
+            if (p.done) continue;
+            if (p.errType === ERR.IGNITION) { 
+                p.done = true; 
+                p.finishTime = Infinity; 
+                p.note = 'IGNITION FAIL!'; 
+                continue; 
+            }
 
-            if(!p.super && p.superEligible && p.progress >= p.superTrigger){
-                p.super = true; beep('super',0.02,0.16); log(`${p.name}: SUPER!`, 'warn');
+            if (!p.super && p.superEligible && p.progress >= p.superTrigger) {
+                p.super = true; 
+                beep('super', 0.02, 0.16); 
+                log(`${p.name}: SUPER!`, 'warn');
             }
 
             let spd;
-            if(p.super){
+            if (p.super) {
                 spd = 280;
             } else {
-                spd = (state.locked && p.finishSpeed!=null) ? p.finishSpeed : (p.baseSpeed||0);
-                const wobble = Math.sin(p.phase + t*Math.PI*2*(p.noiseFreq||1.5)) * (p.noiseAmp||1);
+                spd = (state.locked && p.finishSpeed != null) ? p.finishSpeed : (p.baseSpeed || 0);
+                const wobble = Math.sin(p.phase + t * Math.PI * 2 * (p.noiseFreq || 1.5)) * (p.noiseAmp || 1);
                 spd += wobble * 0.5;
 
-                if(p.boostEnd && now < p.boostEnd) spd *= (1 + p.boostMag);
-                else { p.boostMag = 0; p.boostEnd = 0; }
+                if (p.boostEnd && now < p.boostEnd) {
+                    spd *= (1 + p.boostMag);
+                } else { 
+                    p.boostMag = 0; 
+                    p.boostEnd = 0; 
+                }
 
-                if(!state.locked){
-                    const bandLo=0.96, bandHi=1.08;
-                    const k = (racers.length>1? (racers.length-1-rank)/(racers.length-1) : 0);
-                    spd *= (bandLo + k*(bandHi-bandLo));
+                // 순위 계산
+                if (!state.locked && racers.length > 1) {
+                    const rank = sorted.indexOf(p);
+                    const bandLo = 0.96, bandHi = 1.08;
+                    const k = (racers.length - 1 - rank) / (racers.length - 1);
+                    spd *= (bandLo + k * (bandHi - bandLo));
                 }
             }
 
-            if(!p.lateBoostUsed && !p.done && p.progress >= 80 && p.progress < 99){
+            if (!p.lateBoostUsed && !p.done && p.progress >= 80 && p.progress < 99) {
                 const behind = (leaderProgress - p.progress);
-                if(behind > 1.5){
-                    const chance = Math.min(0.6, 0.15 + behind*0.08 + Math.random()*0.2);
-                    if(Math.random() < chance){
+                if (behind > 1.5) {
+                    const chance = Math.min(0.6, 0.15 + behind * 0.08 + Math.random() * 0.2);
+                    if (Math.random() < chance) {
                         p.lateBoostUsed = true;
-                        const mag = 0.8 + Math.random()*1.6 + Math.min(2.2, behind*0.12);
-                        p.boostMag = mag; p.boostEnd = now + 600 + Math.random()*900;
-                        p.msgText = '올 파라미터 안정화!'; p.msgUntil = now + 1200; p.msgCooldown = now + 1400;
-                        beep('super',0.02,0.14);
+                        const mag = 0.8 + Math.random() * 1.6 + Math.min(2.2, behind * 0.12);
+                        p.boostMag = mag; 
+                        p.boostEnd = now + 600 + Math.random() * 900;
+                        p.msgText = '올 파라미터 안정화!'; 
+                        p.msgUntil = now + 1200; 
+                        p.msgCooldown = now + 1400;
+                        beep('super', 0.02, 0.14);
                     }
                 }
             }
 
-            const eff = Math.max(0.0001, spd);
-            if(p.lastSpd!=null && now>p.msgCooldown){
-                const ratio = eff / Math.max(0.0001, p.lastSpd);
-                if(ratio <= 0.82){ p.msgText = '리플렉트 상승!'; p.msgUntil = now + 1000; p.msgCooldown = now + 1200; }
-                else if(ratio >= 1.18){ p.msgText = '올 파라미터 안정화!'; p.msgUntil = now + 1000; p.msgCooldown = now + 1200; }
-            }
-            p.lastSpd = eff;
-
-            if(p.errType===ERR.EPD_MIN){
-                if(!p.errTriggered){
-                    p.progress += Math.max(0, p.super? 280 : spd) * (dt/1000);
-                    if(!p.super && p.progress >= p.stopAt){ p.errTriggered=true; p.done=true; p.finishTime=Infinity; p.note='EPD MIN ERR'; log(p.name+': '+p.note,'err'); beep('err',0.02,0.1); }
-                    else { allDone=false; }
+            // 진행도 업데이트 및 완료 체크 로직
+            if (p.errType === ERR.EPD_MIN) {
+                if (!p.errTriggered) {
+                    p.progress += Math.max(0, p.super ? 280 : spd) * (dt / 1000);
+                    if (!p.super && p.progress >= p.stopAt) { 
+                        p.errTriggered = true; 
+                        p.done = true; 
+                        p.finishTime = Infinity; 
+                        p.note = 'EPD MIN ERR'; 
+                        log(p.name + ': ' + p.note, 'err'); 
+                        beep('err', 0.02, 0.1); 
+                    } else { 
+                        allDone = false; 
+                    }
                 }
                 continue;
             }
 
-            p.progress += Math.max(0, spd) * (dt/1000);
+            p.progress += Math.max(0, spd) * (dt / 1000);
 
-            if(p.errType===ERR.EPD_MAX){
-                if(p.progress>=102){ p.done=true; p.finishTime=(now-state.startAt); p.note='EPD MAX ERR'; log(p.name+': '+p.note,'err'); beep('err',0.02,0.1); }
-                else { allDone=false; }
+            if (p.errType === ERR.EPD_MAX) {
+                if (p.progress >= 102) { 
+                    p.done = true; 
+                    p.finishTime = (now - state.startAt); 
+                    p.note = 'EPD MAX ERR'; 
+                    log(p.name + ': ' + p.note, 'err'); 
+                    beep('err', 0.02, 0.1); 
+                } else { 
+                    allDone = false; 
+                }
             } else {
-                if(p.progress>=100){ p.done=true; p.finishTime=(now-state.startAt); p.note = (p.errType===ERR.DOUBLE)? 'DOUBLE ETCH!' : 'DONE'; if(p.errType===ERR.DOUBLE){ log(p.name+': '+p.note,'warn'); beep('swap',0.015,0.08);} else {beep('finish',0.02,0.12);} }
-                else { allDone=false; }
+                if (p.progress >= 100) { 
+                    p.done = true; 
+                    p.finishTime = (now - state.startAt); 
+                    p.note = (p.errType === ERR.DOUBLE) ? 'DOUBLE ETCH!' : 'DONE'; 
+                    if (p.errType === ERR.DOUBLE) { 
+                        log(p.name + ': ' + p.note, 'warn'); 
+                        beep('swap', 0.015, 0.08);
+                    } else {
+                        beep('finish', 0.02, 0.12);
+                    } 
+                } else { 
+                    allDone = false; 
+                }
             }
         }
 
-        if(state.locked && !state.finishSpeedSet){
-            const survivors = state.players.filter(p=>!p.done && p.errType!==ERR.IGNITION && p.errType!==ERR.EPD_MIN && !p.super);
-            const baseFinish = (now - state.startAt)/1000 + 1.2 + Math.random()*0.2;
-            survivors.forEach((p,i)=>{
+        if (state.locked && !state.finishSpeedSet) {
+            const survivors = state.players.filter(p => 
+                !p.done && 
+                p.errType !== ERR.IGNITION && 
+                p.errType !== ERR.EPD_MIN && 
+                !p.super
+            );
+            const baseFinish = (now - state.startAt) / 1000 + 1.2 + Math.random() * 0.2;
+            survivors.forEach((p, i) => {
                 const remain = Math.max(0, 100 - p.progress);
-                const jitter = (i/(survivors.length-1+1e-9))*0.18;
+                const jitter = (i / (survivors.length - 1 + 1e-9)) * 0.18;
                 const targetArrival = baseFinish + jitter;
                 p.finishSpeed = remain / Math.max(0.2, targetArrival);
             });
@@ -674,37 +732,39 @@ function step(now){
 
         // draw
         ctx.save();
-        if(zoomLevel !== 1) {
+        if (zoomLevel !== 1) {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.translate(canvas.width/2, canvas.height/2);
+            ctx.translate(canvas.width / 2, canvas.height / 2);
             ctx.scale(zoomLevel, zoomLevel);
-            ctx.translate(-canvas.width/2, -canvas.height/2);
-            ctx.translate((1 - 1/zoomLevel) * (canvas.width/2 - zoomCenterX), 
-                         (1 - 1/zoomLevel) * (canvas.height/2 - zoomCenterY));
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+            ctx.translate(
+                (1 - 1 / zoomLevel) * (canvas.width / 2 - zoomCenterX), 
+                (1 - 1 / zoomLevel) * (canvas.height / 2 - zoomCenterY)
+            );
         }
-        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawWafer(ctx); 
         drawGuides(ctx);
-        state.players.forEach((p,i)=> carveTrench(p,i, now));
+        state.players.forEach((p, i) => carveTrench(p, i, now));
         const ranked = currentRanking();
-        if(ranked[0]) drawLeaderLine(ranked[0]);
-        if(ranked.length > 1) {
-            drawLastPlace(ranked[ranked.length-1]);
+        if (ranked[0]) drawLeaderLine(ranked[0]);
+        if (ranked.length > 1) {
+            drawLastPlace(ranked[ranked.length - 1]);
         }
         stepSparks(dt);
         ctx.restore();
         updateHUD();
 
-        if(allDone){
-            state.running=false; 
-            state.finished=true;
-            btnReset.disabled=false; 
-            btnStart.disabled=false;
+        if (allDone) {
+            state.running = false; 
+            state.finished = true;
+            btnReset.disabled = false; 
+            btnStart.disabled = false;
             log('Etch end — 결과 집계 완료');
             assignRanks(); 
             renderStatus(); 
             renderBoard(); 
-            beep('finish',0.025,0.2);
+            beep('finish', 0.025, 0.2);
             
             // 확대 효과 해제
             targetZoom = 1;
@@ -714,21 +774,23 @@ function step(now){
     } else {
         // 종료 후에도 트렌치 유지
         ctx.save();
-        if(zoomLevel !== 1) {
+        if (zoomLevel !== 1) {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.translate(canvas.width/2, canvas.height/2);
+            ctx.translate(canvas.width / 2, canvas.height / 2);
             ctx.scale(zoomLevel, zoomLevel);
-            ctx.translate(-canvas.width/2, -canvas.height/2);
-            ctx.translate((1 - 1/zoomLevel) * (canvas.width/2 - zoomCenterX), 
-                         (1 - 1/zoomLevel) * (canvas.height/2 - zoomCenterY));
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+            ctx.translate(
+                (1 - 1 / zoomLevel) * (canvas.width / 2 - zoomCenterX), 
+                (1 - 1 / zoomLevel) * (canvas.height / 2 - zoomCenterY)
+            );
         }
-        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawWafer(ctx); 
         drawGuides(ctx);
-        if(state.finished){
+        if (state.finished) {
             const now2 = performance.now();
-            state.players.forEach((p,i)=> carveTrench(p,i, now2));
-            if(currentRanking()[0]) drawLeaderLine(currentRanking()[0]);
+            state.players.forEach((p, i) => carveTrench(p, i, now2));
+            if (currentRanking()[0]) drawLeaderLine(currentRanking()[0]);
         }
         ctx.restore();
         updateHUD();
@@ -805,6 +867,7 @@ requestAnimationFrame(step);
     ctx.arcTo(x,y+h,x,y,r);
     ctx.arcTo(x,y,x+w,y,r);
     ctx.closePath();
+    ctx.fill();
   }
 
   // 최초 렌더
