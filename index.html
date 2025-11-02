@@ -766,12 +766,13 @@ const now2 = performance.now();
 state.players.forEach((p,i)=> carveTrench(p,i, now2));
 drawLeaderLine(currentRanking()[0]);
 }
-   updateFireworks(dt);
 }
+updateFireworks(dt);
 updateHUD();
-}
 requestAnimationFrame(step);
-}}
+}
+
+
 
 
   
