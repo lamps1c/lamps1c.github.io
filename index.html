@@ -134,7 +134,11 @@ window.addEventListener('DOMContentLoaded', () => {
     const padX = 32;
     wafer.x = padX; wafer.w = canvas.clientWidth - padX*2;
 // 기존: wafer.h = Math.min(420, canvas.clientHeight - 120);
-wafer.h = Math.min(600, canvas.clientHeight - 50);  // 높이 증가
+// 기존 가로 크기(wafer.w)는 그대로
+wafer.h = Math.min(800, canvas.clientHeight - 20);  // 세로 높이 증가
+wafer.y = 20;  // 상단 여백 20px 고정
+wafer.innerH = wafer.h * 0.9;  // 내부 높이 조정
+
 
 
     wafer.y = (canvas.clientHeight - wafer.h)/2;
@@ -434,7 +438,7 @@ wafer.innerH = wafer.h * 0.9;  // 내부 높이도 조정
     ctx.shadowOffsetY = 0;
     
     const label = `👑 ${leader.name}`;
-    ctx.font = '800 16px ui-sans-serif, system-ui';
+    ctx.font = '800 13px ui-sans-serif, system-ui';
     const lw = ctx.measureText(label).width + 30;
     const lh = 28;
     
@@ -488,7 +492,7 @@ function drawLastPlace(player) {
     ctx.shadowOffsetY = 0;
 
     const label = `💥 ${player.name}`;
-    ctx.font = '800 15px ui-sans-serif, system-ui';
+    ctx.font = '800 13px ui-sans-serif, system-ui';
     const lw = ctx.measureText(label).width + 30;
     const lh = 26;
 
@@ -592,20 +596,16 @@ function step(now) {
         const t = (now - state.startAt) / 1000;
 
         // 슬로모 진입
-        if (!state.locked && avgProgress() >= 70) {
-            state.locked = true; 
-            state.slowmo = true; 
-            log('Main etch end! Over etch start!', 'warn');
-            
-            // 확대 효과 설정
-            targetZoom = 5;
-            const leader = currentRanking()[0];
+if (!state.locked && avgProgress() >= 90) {
+    targetZoom = 5;  // y축 5배 확대
+    zoomCenterY = wafer.y + wafer.h * 0.9;  // 확대 중심 하단으로
+}
             if (leader) {
                 const idx = state.players.indexOf(leader);
                 const n = state.players.length;
                 zoomCenterX = laneX(idx, n);
                 // 기존: zoomCenterY = wafer.y + wafer.h / 2;
-                zoomCenterY = wafer.y + wafer.h * 0.7;  // 화면 하단 70% 지점을 중심으로
+                zoomCenterY = wafer.y + wafer.h * 0.9;  // 화면 하단 70% 지점을 중심으로
 
             }
             beep('super', 0.02, 0.2);
@@ -627,7 +627,7 @@ function step(now) {
             if (!p.super && p.superEligible && p.progress >= p.superTrigger) {
                 p.super = true; 
                 beep('super', 0.02, 0.16); 
-                log(`${p.name}: SUPER!`, 'warn');
+                log(`${p.name}: SUPER ETCH!`, 'warn');
             }
 
             let spd;
@@ -739,15 +739,12 @@ function step(now) {
         ctx.save();
 if (zoomLevel !== 1) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.translate(canvas.width / 2, canvas.height * 0.7);  // 세로 중심을 70%로 조정
-    ctx.scale(zoomLevel, zoomLevel);
-    ctx.translate(-canvas.width / 2, -canvas.height * 0.7);
-    // 기존 x축 이동은 유지하되 y축 이동을 줄임
-    ctx.translate(
-        (1 - 1/zoomLevel) * (canvas.width/2 - zoomCenterX), 
-        (1 - 1/zoomLevel) * (canvas.height*0.7 - zoomCenterY) * 0.5  // y축 이동량 50% 감소
-    );
+    // x는 1배, y는 5배로 확대
+    ctx.scale(1, zoomLevel);  // ⭐ x:1, y:5
+    // 세로 확대 중심을 하단 80% 지점으로 (아래쪽이 더 잘 보이게)
+    ctx.translate(0, (1 - 1/zoomLevel) * (canvas.height * 0.9 - zoomCenterY));
 }
+
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawWafer(ctx); 
