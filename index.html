@@ -156,7 +156,12 @@ wafer.innerH = wafer.h * 0.9;  // 내부 높이도 조정
     const color = level==='err' ? 'var(--danger)' : level==='warn' ? 'var(--warn)' : 'var(--muted)';
     p.style.color = color; p.textContent = msg; logEl.appendChild(p); logEl.scrollTop = logEl.scrollHeight;
   }
-  function parseNames(text){ return text.split(/[,\s]+/).map(s=>s.trim()).filter(Boolean); }
+  function parseNames(text) {
+    return text
+        .split(/[,\n\s]+/)  // 쉼표, 줄바꿈, 공백으로 분리
+        .map(name => name.trim())
+        .filter(name => name.length > 0);  // 빈 문자열 제거
+}
 
   function renderChips(){
     chips.innerHTML='';
@@ -167,13 +172,35 @@ wafer.innerH = wafer.h * 0.9;  // 내부 높이도 조정
   }
 
   // ==== participants ====
-  function addPlayersFromInput(){
-    const arr = parseNames(namesEl.value);
-    if(arr.length===0){ alert('이름을 입력하세요. (띄어쓰기, 쉼표, 줄바꿈 구분)'); return; }
-    const seen = new Set(state.players.map(p=>p.name));
-    arr.forEach(n=>{ if(!seen.has(n)) state.players.push({name:n}); });
-    namesEl.value=''; renderChips(); drawStatic();
-  }
+  function addPlayersFromInput() {
+    const inputText = namesEl.value.trim();
+    if (!inputText) {
+        alert('이름을 입력하세요. (띄어쓰기, 쉼표, 줄바꿈 구분)');
+        return;
+    }
+    const arr = parseNames(inputText);
+    if (arr.length === 0) {
+        alert('유효한 이름이 없습니다.');
+        return;
+    }
+    const existingNames = state.players.map(p => p.name);
+    arr.forEach(name => {
+        if (!existingNames.includes(name)) {
+            state.players.push({ 
+                name: name,
+                progress: 0,
+                done: false,
+                errType: ERR.NONE,
+                // 기타 필수 속성 추가
+            });
+        }
+    });
+    namesEl.value = '';
+    renderChips();
+    drawStatic();
+    console.log("추가된 참가자:", state.players);  // 디버깅
+}
+
   function shufflePlayers(){
     for(let i=state.players.length-1;i>0;i--){
       const j=Math.floor(Math.random()*(i+1));
@@ -189,7 +216,8 @@ wafer.innerH = wafer.h * 0.9;  // 내부 높이도 조정
     btnStart.disabled=false; btnReset.disabled=true;
     log('초기화 완료');
   }
-  btnAdd.onclick = addPlayersFromInput;
+// 기존: btnAdd.onclick = addPlayersFromInput;
+btnAdd.addEventListener('click', addPlayersFromInput);
   btnClear.onclick = clearAll;
   btnShuffle.onclick = shufflePlayers;
 
