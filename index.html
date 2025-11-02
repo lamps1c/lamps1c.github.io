@@ -772,7 +772,7 @@ updateHUD();
 }
 requestAnimationFrame(step);
 }
-requestAnimationFrame(step);
+
 
 function assignRanks(){
 const finishers = state.players.filter(p=>p.done && p.note!=='DOUBLE ETCH!' && !(p.note&&p.note.includes('ERR')) && p.finishTime!==Infinity)
