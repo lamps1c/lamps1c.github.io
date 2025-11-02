@@ -390,10 +390,9 @@ function carveTrench(p, idx, now) {
     const maxDepth = wafer.innerH - 6;
     const depth = Math.min(1.05, p.progress / 100) * maxDepth;
     const tipY = top + depth;
-    const isLastStretch = p.progress >= 90 && !p.done;  // 90% 이상 구간
+const isLastStretch = p.progress >= 90 && !p.done;
+drawProfile(ctx, x, top, p.progress, hue, isLastStretch);
 
-    // 1. 트렌치 그리기 (90% 이상일 때 3배 확대)
-    drawProfile(ctx, x, top, depth, hue, isLastStretch, isLastStretch ? 3 : 1);
 
     // 2. 반짝임 효과 (90% 이상일 때 더 자주)
     if (isLastStretch && Math.random() < 0.4) {
@@ -412,67 +411,56 @@ function carveTrench(p, idx, now) {
 }
 
 
-function drawProfile(toCtx, x, top, depth, hue, isLastStretch, scale = 1) {
-    const maxDepth = wafer.innerH - 6;
-    const wTop = 26 * scale, wBottom = 20 * scale;  // 90% 이상일 때 폭 확대
-    const w = (wTop - (wTop - wBottom) * (depth / maxDepth));
-    const half = w / 2;
+function drawProfile(toCtx, x, top, progress, hue, isLastStretch) {
+    const maxDepth = wafer.innerH - 6;  // 기본 최대 깊이
+    const remaining = 100 - progress;   // 남은 진행량 (%)
+    
+    // 90% 이상일 때: 남은 양에 따라 깊이 확대 (1.5배 ~ 3배)
+    const scale = isLastStretch 
+        ? 1.5 + (1.5 * (1 - remaining / 10))  // 90%→1.5배, 99%→3배
+        : 1;
+    const depth = progress / 100 * maxDepth * scale;
+
+    const wTop = 26, wBottom = 20;  // 트렌치 상/하단 폭
+    const w = wTop - (wTop - wBottom) * (depth / (maxDepth * scale));
+    const halfW = w / 2;
     const rough = (y) => Math.sin(y * 0.08) * 1.1 + Math.sin(y * 0.23) * 0.55;
 
+    // 1. 트렌치 경로 생성
     const path = new Path2D();
-    path.moveTo(x - half + rough(0), top);
+    path.moveTo(x - halfW + rough(0), top);
     for (let i = 1; i <= 10; i++) {
-        const yy = top + (depth / 10) * i;
-        const hw = (w / 2) - (i / 10) * 2.0;
-        path.lineTo(x - hw + rough(yy), yy);
+        const y = top + (depth / 10) * i;
+        const hw = halfW - (i / 10) * 2.0;
+        path.lineTo(x - hw + rough(y), y);
     }
     for (let i = 10; i >= 0; i--) {
-        const yy = top + (depth / 10) * i;
-        const hw = (w / 2) - (i / 10) * 2.0;
-        path.lineTo(x + hw - rough(yy), yy);
+        const y = top + (depth / 10) * i;
+        const hw = halfW - (i / 10) * 2.0;
+        path.lineTo(x + hw - rough(y), y);
     }
     path.closePath();
 
-    // 1. 제거(에칭) 효과
+    // 2. 트렌치 그리기
     toCtx.save();
     toCtx.globalCompositeOperation = 'destination-out';
     toCtx.fill(path);
     toCtx.restore();
 
-    // 2. 빛 반사/플라즈마 효과 (90% 이상일 때 더 밝게)
+    // 3. 확대 시 강조 효과
     toCtx.save();
-    const g1 = toCtx.createLinearGradient(x, top, x, top + depth);
-    g1.addColorStop(0, `hsla(${hue}, 90%, 60%, ${isLastStretch ? 0.4 : 0.2})`);
-    g1.addColorStop(1, `hsla(${hue}, 90%, 60%, ${isLastStretch ? 0.7 : 0.3})`);
+    const g = toCtx.createLinearGradient(x, top, x, top + depth);
+    g.addColorStop(0, `hsla(${hue}, 90%, 60%, ${isLastStretch ? 0.5 : 0.2})`);
+    g.addColorStop(1, `hsla(${hue}, 90%, 60%, ${isLastStretch ? 0.9 : 0.3})`);
     toCtx.globalCompositeOperation = 'lighter';
-    toCtx.fillStyle = g1;
+    toCtx.fillStyle = g;
     toCtx.fill(path);
-    toCtx.restore();
-
-    // 3. 경계선 강조 (90% 이상일 때 더 두껍게)
-    toCtx.save();
     toCtx.strokeStyle = `hsla(${hue}, 100%, 75%, ${isLastStretch ? 0.9 : 0.6})`;
     toCtx.lineWidth = isLastStretch ? 2.0 : 1.0;
     toCtx.stroke(path);
     toCtx.restore();
-
-    // 4. 90% 이상일 때 반짝임 효과
-    if (isLastStretch && Math.random() < 0.3) {
-        toCtx.save();
-        toCtx.globalCompositeOperation = 'lighter';
-        toCtx.fillStyle = `hsla(${hue}, 100%, 80%, 0.7)`;
-        toCtx.beginPath();
-        toCtx.arc(
-            x + (Math.random() - 0.5) * w * 0.5,
-            top + depth - 5 + Math.random() * 10,
-            1.5 + Math.random() * 1.5,
-            0,
-            Math.PI * 2
-        );
-        toCtx.fill();
-        toCtx.restore();
-    }
 }
+
 
 
 function drawLeaderLine(leader) {
